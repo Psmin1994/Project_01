@@ -1,0 +1,33 @@
+{
+  "name": "crawling",
+  "version": "1.0.0",
+  "description": "Crawling",
+  "main": "app.js",
+  "scripts": {
+    "start": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Psmin94/Project_01.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Psmin94/Project_01/issues"
+  },
+  "homepage": "https://github.com/Psmin94/Project_01#readme",
+  "dependencies": {
+    "axios": "^1.3.2",
+    "body-parser": "^1.20.1",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "fs": "^0.0.1-security",
+    "mysql2": "^3.1.0",
+    "nodemon": "^2.0.20",
+    "path": "^0.12.7",
+    "puppeteer": "^19.6.3"
+  },
+  "type": "module"
+}
