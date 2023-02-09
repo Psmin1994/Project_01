@@ -1,6 +1,7 @@
 import puppeteer from "puppeteer";
+import DB from "./db/DB.js";
 
-var getReview = async (href) => {
+var getReview = async (urlList) => {
   try {
     const browser = await puppeteer.launch({
       headless: true,
@@ -15,63 +16,78 @@ var getReview = async (href) => {
       height: 768,
     });
 
-    await page.goto(href);
+    for (let href of urlList) {
+      await page.goto(href);
 
-    await page.waitForSelector(
-      "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(5) > a"
-    );
+      var click = "";
 
-    await page.click(
-      "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(5) > a"
-    );
+      var testStr = await page.$$eval(
+        "#main_pack > div.sc_new.cs_common_module.case_empasis._au_movie_content_wrap > div.cm_top_wrap._sticky._custom_select._header > div.title_area.type_keep._title_area > h2 > span",
+        (element) => {
+          if (element.length === 2) return element[1].textContent;
+          else return null;
+        }
+      );
 
-    const result = [];
-
-    await page.waitForSelector(
-      "#main_pack > div._au_movie_content_wrap > div.cm_content_wrap > div.cm_content_area._cm_content_area_chart._cm_content_area_graph_donut > div > div:nth-child(2) > div > div > ul > li:nth-child(1) > div > div.area_intro_info > span.area_star_number"
-    );
-
-    result.totalScore = await page.$eval(
-      "#main_pack > div._au_movie_content_wrap > div.cm_content_wrap > div.cm_content_area._cm_content_area_chart._cm_content_area_graph_donut > div > div:nth-child(2) > div > div > ul > li:nth-child(1) > div > div.area_intro_info > span.area_star_number",
-      (element) => {
-        return element.textContent;
+      if (testStr === "상영중") {
+        click =
+          "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap._sticky._custom_select._header > div.sub_tap_area._scrolling_wrapper_common_tab._scroll_mover > div > div > ul > li:nth-child(5) > a";
+      } else {
+        click =
+          "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap._sticky._custom_select._header > div.sub_tap_area._scrolling_wrapper_common_tab._scroll_mover > div > div > ul > li:nth-child(4) > a";
       }
-    );
 
-    await page.waitForSelector(
-      "#main_pack > div._au_movie_content_wrap > div.cm_content_wrap > div.cm_content_area._cm_content_area_rating > div > div:nth-child(2) > div.lego_review_list > ul > li"
-    );
+      await page.waitForSelector(click);
 
-    const tmp = await page.$$(
-      "#main_pack > div._au_movie_content_wrap > div.cm_content_wrap > div.cm_content_area._cm_content_area_rating > div > div:nth-child(2) > div.lego_review_list > ul > li"
-    );
+      await page.click(click);
 
-    for (let node of tmp) {
-      const data = {};
+      await page.waitForSelector(
+        "#main_pack > div.sc_new.cs_common_module.case_empasis._au_movie_content_wrap > div.cm_content_wrap > div.cm_content_area._cm_content_area_rating > div > div:nth-child(2) > div.lego_review_list._scroller > ul > li:last-child"
+      );
 
-      data.score = await node.$eval("div.area_title_box > div > div.area_text_box", (element) => {
-        var tmp = element.textContent.split(")");
-        return tmp[1];
-      });
+      const tmp = await page.$$(
+        "#main_pack > div.sc_new.cs_common_module.case_empasis._au_movie_content_wrap > div.cm_content_wrap > div.cm_content_area._cm_content_area_rating > div > div:nth-child(2) > div.lego_review_list._scroller > ul > li"
+      );
 
-      data.comment = await node.$eval("div.area_review_content > div > span.desc._text", (element) => {
-        return element.textContent;
-      });
+      const result = [];
 
-      data.user = await node.$eval("dl > dd.this_text_stress._btn_writer", (element) => {
-        return element.textContent.replace(/\*/g, "");
-      });
+      for (let node of tmp) {
+        const data = {};
 
-      data.date = await node.$eval("dl > dd:nth-child(4)", (element) => {
-        return element.textContent.replace(". ", " ");
-      });
+        data.movies_name = await page.$eval(
+          "#main_pack > div.sc_new.cs_common_module.case_empasis._au_movie_content_wrap > div.cm_top_wrap._sticky._custom_select._header > div.title_area.type_keep._title_area > h2 > span.area_text_title > strong > a",
+          (element) => {
+            return element.textContent;
+          }
+        );
 
-      await result.push(data);
+        data.score = await node.$eval("div.area_title_box > div > div.area_text_box", (element) => {
+          var tmp = element.textContent.split(")");
+          return tmp[1];
+        });
+
+        data.comment = await node.$eval("div.area_review_content > div > span.desc._text", (element) => {
+          return element.textContent;
+        });
+
+        data.user = await node.$eval("dl > dd.this_text_stress._btn_writer", (element) => {
+          return element.textContent.replace(/\*/g, "");
+        });
+
+        data.date = await node.$eval("dl > dd:nth-child(4)", (element) => {
+          return element.textContent.replace(". ", " ");
+        });
+
+        result.push(data);
+      }
+
+      await DB.insertReview(result);
     }
+
     // 브라우저를 종료한다.
     await browser.close();
 
-    return result;
+    return console.log("Reviews Done");
   } catch (err) {
     console.log(err);
   }

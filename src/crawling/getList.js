@@ -4,6 +4,9 @@ var getList = async () => {
   try {
     const url_List = [];
 
+    // 테스트용
+    // const nameList = [];
+
     var crawlList = async () => {
       // 복사한 리스트의 Selector로 리스트를 모두 가져온다.
       let lists = await page.$$(
@@ -17,6 +20,13 @@ var getList = async () => {
         });
 
         url_List.push(href);
+
+        // 테스트용
+        // const name = await list.$eval("div.data_area > div > div.title._ellipsis > div > a", (element) => {
+        //   return element.textContent;
+        // });
+
+        // nameList.push(name);
       }
     };
 
@@ -46,19 +56,20 @@ var getList = async () => {
       }
     );
 
-    await crawlList();
-
     for (var i = 1; i < pageNum; i++) {
-      await page.waitForSelector(
-        "#main_pack > div.sc_new.cs_common_module.case_list.color_1._au_movie_list_content_wrap > div.cm_content_wrap > div > div > div > div.card_content._result_area > div.cm_paging_area._page > div > a.pg_next.on._next"
-      );
+      await crawlList();
+      // nameList.push("----------");
 
       await page.click(
         "#main_pack > div.sc_new.cs_common_module.case_list.color_1._au_movie_list_content_wrap > div.cm_content_wrap > div > div > div > div.card_content._result_area > div.cm_paging_area._page > div > a.pg_next.on._next"
       );
-
-      await crawlList();
+      await page.waitForTimeout(2 * 1000);
     }
+
+    await crawlList();
+
+    // 테스트
+    // console.log(nameList);
 
     // 브라우저를 종료한다.
     await browser.close();
@@ -69,5 +80,4 @@ var getList = async () => {
   }
 };
 
-getList();
 export default getList;

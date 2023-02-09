@@ -1,8 +1,8 @@
 import puppeteer from "puppeteer";
 import getImgUrl from "./getImgUrl.js";
-import insertMovie from "./db/insertMovie.js";
+import DB from "./db/DB.js";
 
-var getMovie = async (href) => {
+var getMovie = async (urlList) => {
   try {
     const browser = await puppeteer.launch({
       headless: true,
@@ -17,128 +17,127 @@ var getMovie = async (href) => {
       height: 768,
     });
 
-    await page.goto(href);
+    const result = [];
 
-    const data = {};
-    await page.waitForSelector(
-      "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(2) > a"
-    );
+    for (let href of urlList) {
+      await page.goto(href);
 
-    await page.click(
-      "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(2) > a"
-    );
+      await page.waitForSelector(
+        "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(2) > a"
+      );
 
-    await page.waitForSelector("#main_pack > div._au_movie_content_wrap");
+      await page.click(
+        "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(2) > a"
+      );
 
-    const selector = await page.$("#main_pack > div._au_movie_content_wrap");
+      await page.waitForSelector("#main_pack > div._au_movie_content_wrap");
 
-    data.name = await selector.$eval(
-      "div.cm_top_wrap > div.title_area > h2 > span.area_text_title > strong > a",
-      (element) => {
-        return element.textContent;
-      }
-    );
+      const selector = await page.$("#main_pack > div._au_movie_content_wrap");
 
-    data.eName = await selector.$eval("div.cm_top_wrap > div.title_area > div > span:nth-child(3)", (element) => {
-      return element.textContent;
-    });
+      const data = {};
 
-    const img = await selector.$eval(
-      " div.cm_content_wrap > div.cm_content_area > div > div.detail_info > a > img",
-      (element) => {
-        return { url: element.src, name: Math.random().toString(36).substring(2, 12) };
-      }
-    );
-
-    data.img = await getImgUrl(img, "movies/poster");
-
-    data.openingDate = await selector.$eval(
-      "div.cm_content_wrap > div.cm_content_area > div > div.detail_info > dl > div:nth-child(1) > dd",
-      (element) => {
-        return element.textContent.slice(0, -1);
-      }
-    );
-
-    data.filmRate = await selector.$eval(
-      "div.cm_content_wrap > div.cm_content_area > div > div.detail_info > dl > div:nth-child(2) > dd",
-      (element) => {
-        return element.textContent;
-      }
-    );
-
-    var tmp = await selector.$eval(
-      "div.cm_content_wrap > div.cm_content_area > div > div.detail_info > dl > div:nth-child(3) > dd",
-      (element) => {
-        const string = element.textContent;
-        var tmp = string.split(", ");
-
-        return tmp;
-      }
-    );
-
-    data.genre = JSON.stringify(tmp);
-
-    data.nation = await selector.$eval(
-      "div.cm_content_wrap > div.cm_content_area > div > div.detail_info > dl > div:nth-child(4) > dd",
-      (element) => {
-        return element.textContent;
-      }
-    );
-
-    data.runningTime = await selector.$eval(
-      "div.cm_content_wrap > div.cm_content_area > div > div.detail_info > dl > div:nth-child(5) > dd",
-      (element) => {
-        return element.textContent;
-      }
-    );
-
-    data.introContent = await selector.$eval(
-      "div.cm_content_wrap > div.cm_content_area > div > div.intro_box._content > p",
-      (element) => {
-        return element.textContent;
-      }
-    );
-
-    // 평점, 관객 수 정보 담겨져있는 <div> 존재하는지 체크
-    let testStr = await selector.$$eval("div.cm_content_wrap > div", (element) => {
-      var attr = element[2].attributes[0].value.split(" ");
-      return attr;
-    });
-
-    var tmp = false;
-
-    for (let test of testStr) {
-      if (test.includes("graph_rank")) {
-        tmp = true;
-      }
-    }
-
-    if (tmp) {
-      data.totalAudience = await selector.$eval(
-        "div.cm_content_wrap > div.cm_content_area > div > div.lego_rating_star > ul > li:nth-child(3) > div.area_content > span",
+      data.name = await selector.$eval(
+        "div.cm_top_wrap > div.title_area > h2 > span.area_text_title > strong > a",
         (element) => {
-          return element.textContent + "만 명";
+          return element.textContent;
         }
       );
 
-      data.score = await selector.$eval(
-        "div.cm_content_wrap > div.cm_content_area._cm_content_area_graph_rank > div > div.lego_rating_star > ul > li:nth-child(2) > a > div.area_content > span.this_text_bold",
+      data.eName = await selector.$eval("div.cm_top_wrap > div.title_area > div > span:nth-child(3)", (element) => {
+        return element.textContent;
+      });
+
+      const img = await selector.$eval(
+        " div.cm_content_wrap > div.cm_content_area > div > div.detail_info > a > img",
         (element) => {
-          return element.textContent * 1;
+          return { url: element.src, name: element.src.split("%").slice(2) };
         }
       );
+
+      data.img = await getImgUrl(img, "movies/poster");
+
+      const infoList = await selector.$$(
+        "div.cm_content_wrap > div.cm_content_area > div > div.detail_info > dl > div"
+      );
+
+      for (let node of infoList) {
+        const key = await node.$eval("dt", (element) => {
+          return element.textContent;
+        });
+
+        const value = await node.$eval("dd", (element) => {
+          return element.textContent;
+        });
+
+        switch (key) {
+          case "개봉":
+            data.openingDate = value.slice(0, -1);
+            break;
+          case "등급":
+            data.filmRate = value;
+            break;
+          case "장르":
+            data.genre = JSON.stringify(value.split(", "));
+            break;
+          case "국가":
+            data.nation = value;
+            break;
+          case "러닝타임":
+            data.runningTime = value.replace("분", "") * 1;
+            break;
+          default:
+            break;
+        }
+      }
+
+      data.introContent = await selector.$eval(
+        "div.cm_content_wrap > div.cm_content_area > div > div.intro_box._content > p",
+        (element) => {
+          return element.textContent;
+        }
+      );
+
+      // 평점, 관객 수 정보 담겨져있는 <div> 존재하는지 체크
+      let testStr = await selector.$$eval("div.cm_content_wrap > div", (element) => {
+        var attr = element[2].attributes[0].value.split(" ");
+        return attr;
+      });
+
+      var tmp = false;
+
+      for (let test of testStr) {
+        if (test.includes("graph_rank")) {
+          tmp = true;
+        }
+      }
+
+      if (tmp) {
+        data.totalAudience = await selector.$eval(
+          "div.cm_content_wrap > div.cm_content_area > div > div.lego_rating_star > ul > li:nth-child(3) > div.area_content > span",
+          (element) => {
+            return element.textContent.replace(/\.|,/g, "") * 1;
+          }
+        );
+
+        data.score = await selector.$eval(
+          "div.cm_content_wrap > div.cm_content_area._cm_content_area_graph_rank > div > div.lego_rating_star > ul > li:nth-child(2) > a > div.area_content > span.this_text_bold",
+          (element) => {
+            return element.textContent * 1;
+          }
+        );
+      }
+      result.push(data);
     }
 
-    await insertMovie(data);
+    await DB.insertMovie(result);
 
     // 브라우저를 종료한다.
     await browser.close();
+
+    return console.log("Movies Done.");
   } catch (err) {
     console.log(err);
   }
 };
 
-getMovie(
-  "https://search.naver.com/search.naver?where=nexearch&sm=tab_etc&mra=bkEw&pkid=68&os=10015835&qvt=0&query=%EC%98%81%ED%99%94%20%EA%B5%90%EC%84%AD"
-);
 export default getMovie;

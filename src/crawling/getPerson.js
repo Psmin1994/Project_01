@@ -1,7 +1,8 @@
 import puppeteer from "puppeteer";
 import getImgUrl from "./getImgUrl.js";
+import DB from "./db/DB.js";
 
-var getPerson = async (href) => {
+var getPerson = async (urlList) => {
   try {
     const browser = await puppeteer.launch({
       headless: true,
@@ -16,120 +17,107 @@ var getPerson = async (href) => {
       height: 768,
     });
 
-    await page.goto(href);
+    for (let href of urlList) {
+      await page.goto(href);
 
-    await page.waitForSelector(
-      "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(3) > a"
-    );
+      await page.waitForSelector(
+        "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(3) > a"
+      );
 
-    await page.click(
-      "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(3) > a"
-    );
+      await page.click(
+        "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap > div.sub_tap_area > div > div > ul > li:nth-child(3) > a"
+      );
 
-    await page.waitForSelector(
-      "#main_pack > div._au_movie_content_wrap > div.cm_content_wrap > div > div.sec_scroll_cast_member > div"
-    );
+      await page.waitForSelector(
+        "#main_pack > div._au_movie_content_wrap > div.cm_content_wrap > div > div.sec_scroll_cast_member > div"
+      );
 
-    var roles = await page.$$(
-      "#main_pack > div._au_movie_content_wrap > div.cm_content_wrap > div > div.sec_scroll_cast_member > div"
-    );
+      var roles = await page.$$(
+        "#main_pack > div._au_movie_content_wrap > div.cm_content_wrap > div > div.sec_scroll_cast_member > div"
+      );
 
-    var array = [];
+      if (roles.length >= 4) roles.length = 3;
 
-    for (let role of roles) {
-      const data = {};
+      const directorsList = [];
+      const actorsList = [];
 
-      data.role = await role.$eval("h3", (element) => {
-        return element.textContent;
-      });
+      for (let role of roles) {
+        var personList = await role.$$("div > div > div > ul > li");
 
-      var tmp = await role.$$("div > div > div > ul > li");
+        for (let node of personList) {
+          const data = {};
 
-      if (tmp.length === 1) {
-        let testStr1 = await page.evaluate((element) => {
-          return element.children[0].nodeName;
-        }, tmp[0]);
+          data.movies_name = await page.$eval(
+            "#main_pack > div._au_movie_content_wrap > div.cm_top_wrap._sticky._custom_select._header > div.title_area.type_keep._title_area > h2 > span > strong > a",
+            (element) => {
+              return element.textContent;
+            }
+          );
 
-        let testStr2 = await page.evaluate((element) => {
-          return element.children[0].children[0].nodeName;
-        }, tmp[0]);
-
-        if (!(testStr1 === "DIV" || testStr2 === "SPAN")) {
-          var img = await tmp[0].$eval("a > div > div.thumb > img", (element) => {
-            return { url: element.src, name: Math.random().toString(36).substring(2, 12) };
-          });
-
-          data.img = await getImgUrl(img, "directors");
-
-          data.name = await tmp[0].$eval("a > div > div.title_box > strong > span", (element) => {
+          data.role = await role.$eval("h3", (element) => {
             return element.textContent;
           });
 
-          let testNode = await tmp[0].$("a > div > div.title_box");
-
-          let testStr3 = await page.evaluate((element) => {
-            var tmp = [];
-            for (let name of element.children) {
-              tmp.push(name.nodeName);
-            }
-            return tmp;
-          }, testNode);
-
-          if (testStr3[1] === "SPAN") {
-            data.roleName = await tmp[0].$eval("a > div > div.title_box > span > span", (element) => {
-              return element.textContent;
-            });
-          }
-
-          array.push(data);
-        }
-      } else {
-        for (let node of tmp) {
-          let testStr1 = await page.evaluate((element) => {
+          let check1 = await page.evaluate((element) => {
             return element.children[0].nodeName;
           }, node);
 
-          let testStr2 = await page.evaluate((element) => {
-            return element.children[0].children[0].nodeName;
+          let check2 = await page.evaluate((element) => {
+            return element.children[0].children[0].attributes[0].value;
           }, node);
 
-          if (!(testStr1 === "DIV" || testStr2 === "SPAN")) {
+          if (check2 === "area_text_box") {
+            continue;
+          }
+
+          if (check1 === "A") {
             var img = await node.$eval("a > div > div.thumb > img", (element) => {
-              return { url: element.src, name: Math.random().toString(36).substring(2, 12) };
+              return { url: element.src, name: element.src.split("%").slice(-1) };
             });
 
-            data.img = await getImgUrl(img, "person");
+            if (
+              img.url !==
+              "https://ssl.pstatic.net/sstatic/keypage/outside/scui/cs_common_module/im/no_img_people_206x232_v2.png"
+            ) {
+              data.img = await getImgUrl(img, "person");
+            }
 
             data.name = await node.$eval("a > div > div.title_box > strong > span", (element) => {
               return element.textContent;
             });
 
-            let testNode = await node.$("a > div > div.title_box");
-
-            let testStr3 = await page.evaluate((element) => {
+            let testStr3 = await node.$eval("a > div > div.title_box", (element) => {
               var tmp = [];
               for (let name of element.children) {
                 tmp.push(name.nodeName);
               }
               return tmp;
-            }, testNode);
+            });
 
             if (testStr3[1] === "SPAN") {
               data.roleName = await node.$eval("a > div > div.title_box > span > span", (element) => {
                 return element.textContent;
               });
             }
-
-            array.push(data);
           }
+          // else {
+          //   data.img = null;
+          //   data.name = null;
+          //   data.roleName = null;
+          // }
+
+          if (data.role === "감독") directorsList.push(data);
+          else actorsList.push(data);
         }
       }
+      await DB.insertDirector(directorsList);
+      await DB.insertActor(actorsList);
     }
 
     // 브라우저를 종료한다.
     await browser.close();
 
-    return array;
+    return console.log("Person Done");
   } catch (e) {
     console.error(e);
   }

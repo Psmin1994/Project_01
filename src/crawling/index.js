@@ -7,15 +7,13 @@ var crawl = async () => {
   try {
     var href_List = await getList();
 
-    var index = 1;
-    for (let href of href_List) {
-      console.log(index++ + " / " + href_List.length);
-      var movies = await getMovie(href);
+    await getMovie(href_List);
 
-      var persons = await getPerson(href);
+    await getPerson(href_List);
 
-      var reviews = await getReview(href);
-    }
+    await getReview(href_List);
+
+    return console.log("Insert Init Table Finish");
   } catch (e) {
     console.error(e);
   }
